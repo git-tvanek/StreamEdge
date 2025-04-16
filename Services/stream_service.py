@@ -5,7 +5,7 @@ StreamService - Služba pro získávání streamů z MagentaTV/MagioTV
 """
 import logging
 from urllib.parse import urlparse
-from app.models.stream import Stream
+from Models.stream import Stream
 
 logger = logging.getLogger(__name__)
 

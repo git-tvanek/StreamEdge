@@ -5,7 +5,8 @@ EPGService - Služba pro získávání programových dat (EPG) z MagentaTV/Magio
 """
 import logging
 from datetime import datetime, timedelta
-from app.models.program import Program
+from Models.program import Program
+from Services.utils.constants import API_ENDPOINTS, TIME_CONSTANTS
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class EPGService:
         self.session = auth_service.session
         self.base_url = auth_service.get_base_url()
         self.language = auth_service.language
+        self.logger = logging.getLogger(f"{__name__}.epg")
 
     def get_epg(self, channel_id=None, days_back=1, days_forward=1):
         """
@@ -54,10 +56,10 @@ class EPGService:
             filter_str = f"channel.id=={channel_id} and startTime=ge={start_time} and endTime=le={end_time}"
         else:
             # Import zde, abychom předešli cirkulárnímu importu
-            from app.services.client_service import ClientService
-            client = ClientService(self.auth_service.username, self.auth_service.password, self.language)
+            from Services.channel_service import ChannelService
+            channel_service = ChannelService(self.auth_service)
             # Získat seznam všech kanálů
-            channels = client.get_channels()
+            channels = channel_service.get_channels()
             if not channels:
                 return None
 
@@ -73,10 +75,10 @@ class EPGService:
 
         try:
             response = self.session.get(
-                f"{self.base_url}/v2/television/epg",
+                f"{self.base_url}{API_ENDPOINTS['epg']['guide']}",
                 params=params,
                 headers=headers,
-                timeout=30
+                timeout=TIME_CONSTANTS["DEFAULT_TIMEOUT"]
             ).json()
 
             if not response.get("success", True):
@@ -162,10 +164,10 @@ class EPGService:
 
         try:
             epg_response = self.session.get(
-                f"{self.base_url}/v2/television/epg",
+                f"{self.base_url}{API_ENDPOINTS['epg']['guide']}",
                 params=params,
                 headers=headers,
-                timeout=30
+                timeout=TIME_CONSTANTS["DEFAULT_TIMEOUT"]
             ).json()
 
             if not epg_response.get("success", True) or not epg_response.get("items"):
@@ -220,3 +222,53 @@ class EPGService:
         except Exception as e:
             logger.error(f"Chyba při hledání pořadu podle času: {e}")
             return None
+
+    def get_current_program(self, channel_id):
+        """
+        Získání aktuálně běžícího programu pro kanál
+
+        Args:
+            channel_id (int): ID kanálu
+
+        Returns:
+            dict: Informace o aktuálním programu nebo None při chybě
+        """
+        now = datetime.now()
+        start_time = (now - timedelta(hours=1)).timestamp()
+        end_time = (now + timedelta(hours=1)).timestamp()
+
+        # Použití metody pro hledání programu v daném časovém rozsahu
+        result = self.find_program_by_time(channel_id, start_time, end_time)
+        if not result or not result.get("schedule_id"):
+            logger.warning(f"Aktuální program pro kanál {channel_id} nebyl nalezen")
+            return None
+
+        return result.get("program")
+
+    def get_next_programs(self, channel_id, count=5):
+        """
+        Získání následujících programů pro kanál
+
+        Args:
+            channel_id (int): ID kanálu
+            count (int): Počet programů, které se mají vrátit
+
+        Returns:
+            list: Seznam následujících programů nebo prázdný seznam při chybě
+        """
+        # Získání EPG pro kanál na následující den
+        epg_data = self.get_epg(channel_id, days_back=0, days_forward=1)
+        if not epg_data or channel_id not in epg_data:
+            return []
+
+        # Seřazení programů podle času začátku
+        programs = sorted(epg_data[channel_id], key=lambda x: x["start_time"])
+
+        # Aktuální čas
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Filtrování programů, které ještě nezačaly
+        upcoming_programs = [program for program in programs if program["start_time"] > now]
+
+        # Vrácení požadovaného počtu programů
+        return upcoming_programs[:count]

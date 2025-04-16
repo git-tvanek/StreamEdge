@@ -5,12 +5,12 @@ ChannelService - Služba pro správu kanálů MagentaTV/MagioTV
 """
 import logging
 from Models.channel import Channel
-from Services.service_base import AuthenticatedServiceBase
+from Services.utils.constants import API_ENDPOINTS, TIME_CONSTANTS
 
 logger = logging.getLogger(__name__)
 
 
-class ChannelService(AuthenticatedServiceBase):
+class ChannelService:
     """
     Služba pro získávání a správu kanálů
     """
@@ -22,10 +22,20 @@ class ChannelService(AuthenticatedServiceBase):
         Args:
             auth_service (AuthService): Instance služby pro autentizaci
         """
-        super().__init__("channel", auth_service)
+        self.auth_service = auth_service
         self.session = auth_service.session
         self.base_url = auth_service.get_base_url()
         self.language = auth_service.language
+        self.logger = logging.getLogger(f"{__name__}.channel")
+
+    def _get_auth_headers(self):
+        """
+        Získání autorizačních hlaviček
+
+        Returns:
+            dict: Hlavičky s autorizačním tokenem nebo None při chybě
+        """
+        return self.auth_service.get_auth_headers()
 
     def get_channels(self):
         """
@@ -45,7 +55,7 @@ class ChannelService(AuthenticatedServiceBase):
                 f"{self.base_url}/home/categories",
                 params={"language": self.language},
                 headers=headers,
-                timeout=30
+                timeout=TIME_CONSTANTS["DEFAULT_TIMEOUT"]
             ).json()
 
             categories = {}
@@ -60,10 +70,10 @@ class ChannelService(AuthenticatedServiceBase):
             }
 
             channels_response = self.session.get(
-                f"{self.base_url}/v2/television/channels",
+                f"{self.base_url}{API_ENDPOINTS['channels']['list']}",
                 params=params,
                 headers=headers,
-                timeout=30
+                timeout=TIME_CONSTANTS["DEFAULT_TIMEOUT"]
             ).json()
 
             if not channels_response.get("success", True):
@@ -128,7 +138,7 @@ class ChannelService(AuthenticatedServiceBase):
         channels = self.get_channels()
 
         # Filtrování kanálů podle skupiny
-        return [channel for channel in channels if channel["group"] == group_name]
+        return [channel for channel in channels if channel["group"].lower() == group_name.lower()]
 
     def get_channel_groups(self):
         """
@@ -143,3 +153,27 @@ class ChannelService(AuthenticatedServiceBase):
         # Extrakce unikátních názvů skupin
         groups = set(channel["group"] for channel in channels)
         return sorted(list(groups))
+
+    def search_channels(self, search_term):
+        """
+        Vyhledávání kanálů podle názvu
+
+        Args:
+            search_term (str): Hledaný výraz
+
+        Returns:
+            list: Seznam kanálů odpovídajících hledanému výrazu
+        """
+        if not search_term:
+            return []
+
+        # Získání seznamu všech kanálů
+        channels = self.get_channels()
+        search_term = search_term.lower()
+
+        # Filtrování kanálů podle názvu
+        return [
+            channel for channel in channels
+            if search_term in channel["name"].lower() or
+               search_term in channel["original_name"].lower()
+        ]

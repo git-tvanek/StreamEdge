@@ -6,6 +6,7 @@ ClientService - Hlavní klientská služba pro MagentaTV/MagioTV API
 import logging
 import time
 from flask import current_app
+
 from Services.auth_service import AuthService
 from Services.channel_service import ChannelService
 from Services.stream_service import StreamService
@@ -37,13 +38,13 @@ class ClientService:
         """
         # Načtení konfigurace, pokud nejsou parametry zadány
         if username is None:
-            username = current_app.config.get("USERNAME", "")
+            username = self._get_config("USERNAME", "")
         if password is None:
-            password = current_app.config.get("PASSWORD", "")
+            password = self._get_config("PASSWORD", "")
         if language is None:
-            language = current_app.config.get("LANGUAGE", "cz")
+            language = self._get_config("LANGUAGE", "cz")
         if quality is None:
-            quality = current_app.config.get("QUALITY", "p5")
+            quality = self._get_config("QUALITY", "p5")
 
         # Inicializace služeb
         self.auth_service = AuthService(username, password, language)
@@ -57,6 +58,26 @@ class ClientService:
         # Základní údaje
         self.language = language
         self.quality = quality
+
+        self.logger = logging.getLogger(f"{__name__}.client")
+
+    def _get_config(self, key, default=None):
+        """
+        Získání hodnoty z konfigurace aplikace
+
+        Args:
+            key (str): Klíč konfigurace
+            default: Výchozí hodnota, pokud klíč neexistuje
+
+        Returns:
+            any: Hodnota konfigurace nebo výchozí hodnota
+        """
+        try:
+            return current_app.config.get(key.upper(), default)
+        except RuntimeError:
+            # Fallback pokud není aktivní aplikační kontext
+            logger.warning(f"Nelze získat konfiguraci pro {key}, použije se výchozí hodnota")
+            return default
 
     def login(self):
         """
@@ -135,9 +156,33 @@ class ClientService:
         """
         return self.channel_service.get_channel_groups()
 
+    def get_channels_by_group(self, group_name):
+        """
+        Získání kanálů podle skupiny
+
+        Args:
+            group_name (str): Název skupiny
+
+        Returns:
+            list: Seznam kanálů ve skupině
+        """
+        return self.channel_service.get_channels_by_group(group_name)
+
+    def search_channels(self, search_term):
+        """
+        Vyhledávání kanálů podle názvu
+
+        Args:
+            search_term (str): Hledaný výraz
+
+        Returns:
+            list: Seznam kanálů odpovídajících vyhledávání
+        """
+        return self.channel_service.search_channels(search_term)
+
     # === Rozhraní streamů ===
 
-    def get_live_stream_url(self, channel_id):
+    def get_stream_url(self, channel_id):
         """
         Získání URL pro živé vysílání
 
@@ -203,6 +248,31 @@ class ClientService:
         """
         return self.epg_service.get_epg(channel_id, days_back, days_forward)
 
+    def get_current_program(self, channel_id):
+        """
+        Získání aktuálně běžícího programu pro kanál
+
+        Args:
+            channel_id (str): ID kanálu
+
+        Returns:
+            dict: Informace o aktuálním programu nebo None
+        """
+        return self.epg_service.get_current_program(channel_id)
+
+    def get_next_programs(self, channel_id, count=5):
+        """
+        Získání následujících programů pro kanál
+
+        Args:
+            channel_id (str): ID kanálu
+            count (int): Počet programů, které se mají vrátit
+
+        Returns:
+            list: Seznam následujících programů
+        """
+        return self.epg_service.get_next_programs(channel_id, count)
+
     # === Rozhraní zařízení ===
 
     def get_devices(self):
@@ -226,6 +296,15 @@ class ClientService:
         """
         return self.device_service.delete_device(device_id)
 
+    def get_current_device(self):
+        """
+        Získání informací o aktuálním zařízení
+
+        Returns:
+            dict: Informace o aktuálním zařízení
+        """
+        return self.device_service.get_current_device_info()
+
     # === Rozhraní playlistů ===
 
     def generate_m3u_playlist(self, server_url=""):
@@ -239,3 +318,28 @@ class ClientService:
             str: Obsah M3U playlistu
         """
         return self.playlist_service.generate_m3u_playlist(server_url)
+
+    def generate_epg_xml(self, server_url="", days=3):
+        """
+        Vygenerování XML pro EPG
+
+        Args:
+            server_url (str): URL serveru
+            days (int): Počet dní pro EPG
+
+        Returns:
+            str: XML data pro EPG
+        """
+        return self.playlist_service.generate_epg_xml(server_url, days, self.epg_service)
+
+    def generate_simple_m3u(self, server_url=""):
+        """
+        Vygenerování jednoduchého M3U playlistu
+
+        Args:
+            server_url (str): URL serveru
+
+        Returns:
+            str: Obsah jednoduchého M3U playlistu
+        """
+        return self.playlist_service.generate_simple_m3u(server_url)

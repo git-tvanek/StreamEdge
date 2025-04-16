@@ -6,14 +6,14 @@ ServiceFactory - Továrna pro vytváření služeb MagentaTV/MagioTV
 import logging
 from flask import current_app
 
-from app.services.auth_service import AuthService
-from app.services.channel_service import ChannelService
-from app.services.stream_service import StreamService
-from app.services.epg_service import EPGService
-from app.services.device_service import DeviceService
-from app.services.playlist_service import PlaylistService
-from app.services.catchup_service import CatchupService
-from app.services.client_service import ClientService
+from Services.auth_service import AuthService
+from Services.channel_service import ChannelService
+from Services.stream_service import StreamService
+from Services.epg_service import EPGService
+from Services.device_service import DeviceService
+from Services.playlist_service import PlaylistService
+from Services.catchup_service import CatchupService
+from Services.client_service import ClientService
 
 logger = logging.getLogger(__name__)
 
