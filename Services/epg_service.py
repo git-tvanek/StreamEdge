@@ -6,12 +6,13 @@ EPGService - Služba pro získávání programových dat (EPG) z MagentaTV/Magio
 import logging
 from datetime import datetime, timedelta
 from Models.program import Program
+from Services.base.authenticated_service_base import AuthenticatedServiceBase
 from Services.utils.constants import API_ENDPOINTS, TIME_CONSTANTS
 
 logger = logging.getLogger(__name__)
 
 
-class EPGService:
+class EPGService(AuthenticatedServiceBase):
     """
     Služba pro získávání a správu programových dat (EPG)
     """
@@ -23,11 +24,10 @@ class EPGService:
         Args:
             auth_service (AuthService): Instance služby pro autentizaci
         """
-        self.auth_service = auth_service
+        super().__init__("epg", auth_service)
         self.session = auth_service.session
         self.base_url = auth_service.get_base_url()
         self.language = auth_service.language
-        self.logger = logging.getLogger(f"{__name__}.epg")
 
     def get_epg(self, channel_id=None, days_back=1, days_forward=1):
         """
@@ -42,7 +42,7 @@ class EPGService:
             dict: EPG data rozdělená podle kanálů nebo None v případě chyby
         """
         # Získání autorizačních hlaviček
-        headers = self.auth_service.get_auth_headers()
+        headers = self._get_auth_headers()
         if not headers:
             return None
 
@@ -82,7 +82,7 @@ class EPGService:
             ).json()
 
             if not response.get("success", True):
-                logger.error(f"Chyba při získání EPG: {response.get('errorMessage', 'Neznámá chyba')}")
+                self.logger.error(f"Chyba při získání EPG: {response.get('errorMessage', 'Neznámá chyba')}")
                 return None
 
             # Zpracování EPG dat
@@ -125,7 +125,7 @@ class EPGService:
             return epg_data
 
         except Exception as e:
-            logger.error(f"Chyba při získání EPG: {e}")
+            self.logger.error(f"Chyba při získání EPG: {e}")
             return None
 
     def find_program_by_time(self, channel_id, start_timestamp, end_timestamp):
@@ -141,7 +141,7 @@ class EPGService:
             dict: Informace o nalezeném pořadu nebo None při chybě
         """
         # Získání autorizačních hlaviček
-        headers = self.auth_service.get_auth_headers()
+        headers = self._get_auth_headers()
         if not headers:
             return None
 
@@ -171,7 +171,7 @@ class EPGService:
             ).json()
 
             if not epg_response.get("success", True) or not epg_response.get("items"):
-                logger.error(
+                self.logger.error(
                     f"Chyba při hledání pořadu v EPG: {epg_response.get('errorMessage', 'Pořad nebyl nalezen')}")
                 return None
 
@@ -220,7 +220,7 @@ class EPGService:
             } if schedule_id else None
 
         except Exception as e:
-            logger.error(f"Chyba při hledání pořadu podle času: {e}")
+            self.logger.error(f"Chyba při hledání pořadu podle času: {e}")
             return None
 
     def get_current_program(self, channel_id):
@@ -240,7 +240,7 @@ class EPGService:
         # Použití metody pro hledání programu v daném časovém rozsahu
         result = self.find_program_by_time(channel_id, start_time, end_time)
         if not result or not result.get("schedule_id"):
-            logger.warning(f"Aktuální program pro kanál {channel_id} nebyl nalezen")
+            self.logger.warning(f"Aktuální program pro kanál {channel_id} nebyl nalezen")
             return None
 
         return result.get("program")

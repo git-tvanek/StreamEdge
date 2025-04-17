@@ -5,12 +5,13 @@ DeviceService - Služba pro správu zařízení MagentaTV/MagioTV
 """
 import logging
 from Models.device import Device
+from Services.base.authenticated_service_base import AuthenticatedServiceBase
 from Services.utils.constants import API_ENDPOINTS, TIME_CONSTANTS
 
 logger = logging.getLogger(__name__)
 
 
-class DeviceService:
+class DeviceService(AuthenticatedServiceBase):
     """
     Služba pro správu zařízení
     """
@@ -22,11 +23,10 @@ class DeviceService:
         Args:
             auth_service (AuthService): Instance služby pro autentizaci
         """
-        self.auth_service = auth_service
+        super().__init__("device", auth_service)
         self.session = auth_service.session
         self.base_url = auth_service.get_base_url()
         self.language = auth_service.language
-        self.logger = logging.getLogger(f"{__name__}.device")
 
     def get_devices(self):
         """
@@ -36,7 +36,7 @@ class DeviceService:
             list: Seznam zařízení s jejich ID a názvy
         """
         # Získání autorizačních hlaviček
-        headers = self.auth_service.get_auth_headers()
+        headers = self._get_auth_headers()
         if not headers:
             return []
 
@@ -96,7 +96,7 @@ class DeviceService:
             bool: True v případě úspěšného odstranění, jinak False
         """
         # Získání autorizačních hlaviček
-        headers = self.auth_service.get_auth_headers()
+        headers = self._get_auth_headers()
         if not headers:
             return False
 
@@ -131,25 +131,6 @@ class DeviceService:
             if device.get("is_this_device", False):
                 return device
         return None
-
-    def update_device_name(self, device_id, new_name):
-        """
-        Aktualizace názvu zařízení (pokud API podporuje tuto funkci)
-
-        Args:
-            device_id (str): ID zařízení
-            new_name (str): Nový název zařízení
-
-        Returns:
-            bool: True pokud byla aktualizace úspěšná, jinak False
-        """
-        # Poznámka: Tato funkce je implementována jako příklad,
-        # ale Magenta TV API nemusí podporovat přejmenování zařízení.
-        # V takovém případě by bylo potřeba upravit implementaci podle
-        # dostupného API.
-
-        self.logger.warning("Přejmenování zařízení není momentálně podporováno API")
-        return False
 
     def get_device_by_id(self, device_id):
         """

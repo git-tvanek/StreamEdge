@@ -9,9 +9,9 @@ import time
 import uuid
 import logging
 import requests
-from flask import current_app
 
-from Services.service_base import ServiceBase
+from Services.base.service_base import ServiceBase
+from Services.utils.constants import API_ENDPOINTS, TIME_CONSTANTS
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,8 @@ class AuthService(ServiceBase):
         self.token_expires = 0
 
         # Soubor pro uložení přihlašovacích údajů
-        self.token_file = os.path.join(self._get_config("DATA_DIR", "data"), f"token_{language}.json")
+        data_dir = self._get_config("DATA_DIR", "data")
+        self.token_file = os.path.join(data_dir, f"token_{language}.json")
 
         # Načtení tokenů při inicializaci
         self._load_tokens()
@@ -81,13 +82,16 @@ class AuthService(ServiceBase):
                     self.refresh_token = data.get("refresh_token")
                     self.token_expires = data.get("expires", 0)
                     self.device_id = data.get("device_id", self.device_id)
-                logger.info("Tokeny načteny ze souboru")
+                self.logger.info("Tokeny načteny ze souboru")
             except Exception as e:
-                logger.error(f"Chyba při načítání tokenů: {e}")
+                self.logger.error(f"Chyba při načítání tokenů: {e}")
 
     def _save_tokens(self):
         """Uložení tokenů do souboru"""
         try:
+            # Vytvoření adresáře, pokud neexistuje
+            os.makedirs(os.path.dirname(self.token_file), exist_ok=True)
+
             with open(self.token_file, 'w') as f:
                 json.dump({
                     "access_token": self.access_token,
@@ -95,9 +99,9 @@ class AuthService(ServiceBase):
                     "expires": self.token_expires,
                     "device_id": self.device_id
                 }, f)
-            logger.info("Tokeny uloženy do souboru")
+            self.logger.info("Tokeny uloženy do souboru")
         except Exception as e:
-            logger.error(f"Chyba při ukládání tokenů: {e}")
+            self.logger.error(f"Chyba při ukládání tokenů: {e}")
 
     def login(self):
         """
@@ -107,11 +111,12 @@ class AuthService(ServiceBase):
             bool: True v případě úspěšného přihlášení, jinak False
         """
         # Ověření platnosti současného tokenu
-        if self.refresh_token and self.token_expires > time.time() + 60:
-            logger.info("Současný token je stále platný")
+        if self.refresh_token and self.token_expires > time.time() + TIME_CONSTANTS["TOKEN_REFRESH_BEFORE_EXPIRY"]:
+            self.logger.info("Současný token je stále platný")
             return self.refresh_access_token()
 
-        app_version = current_app.config.get("APP_VERSION", "4.0.25-hf.0")
+        app_version = self._get_config("APP_VERSION", "4.0.25-hf.0")
+
         # Parametry pro inicializaci přihlášení
         params = {
             "dsid": self.device_id,
@@ -131,15 +136,15 @@ class AuthService(ServiceBase):
         try:
             # První požadavek na inicializaci přihlášení
             init_response = self.session.post(
-                f"{self.base_url}/v2/auth/init",
+                f"{self.base_url}{API_ENDPOINTS['auth']['init']}",
                 params=params,
                 headers=headers,
-                timeout=30
+                timeout=TIME_CONSTANTS["DEFAULT_TIMEOUT"]
             ).json()
 
             if not init_response.get("success", False):
                 error_msg = init_response.get('errorMessage', 'Neznámá chyba')
-                logger.error(f"Chyba inicializace: {error_msg}")
+                self.logger.error(f"Chyba inicializace: {error_msg}")
                 return False
 
             # Získání dočasného přístupového tokenu
@@ -160,15 +165,15 @@ class AuthService(ServiceBase):
 
             # Požadavek na přihlášení
             login_response = self.session.post(
-                f"{self.base_url}/v2/auth/login",
+                f"{self.base_url}{API_ENDPOINTS['auth']['login']}",
                 json=login_params,
                 headers=login_headers,
-                timeout=30
+                timeout=TIME_CONSTANTS["DEFAULT_TIMEOUT"]
             ).json()
 
             if not login_response.get("success", False):
                 error_msg = login_response.get('errorMessage', 'Neznámá chyba')
-                logger.error(f"Chyba přihlášení: {error_msg}")
+                self.logger.error(f"Chyba přihlášení: {error_msg}")
                 return False
 
             # Uložení přihlašovacích tokenů
@@ -179,11 +184,11 @@ class AuthService(ServiceBase):
             # Uložení tokenů do souboru
             self._save_tokens()
 
-            logger.info("Přihlášení úspěšné")
+            self.logger.info("Přihlášení úspěšné")
             return True
 
         except Exception as e:
-            logger.error(f"Chyba při přihlášení: {e}")
+            self.logger.error(f"Chyba při přihlášení: {e}")
             return False
 
     def refresh_access_token(self):
@@ -194,11 +199,11 @@ class AuthService(ServiceBase):
             bool: True v případě úspěšného obnovení tokenu, jinak False
         """
         if not self.refresh_token:
-            logger.warning("Refresh token není k dispozici, je nutné se znovu přihlásit")
+            self.logger.warning("Refresh token není k dispozici, je nutné se znovu přihlásit")
             return self.login()
 
         # Kontrola vypršení tokenu
-        if self.token_expires > time.time() + 60:
+        if self.token_expires > time.time() + TIME_CONSTANTS["TOKEN_REFRESH_BEFORE_EXPIRY"]:
             return True
 
         params = {
@@ -213,15 +218,15 @@ class AuthService(ServiceBase):
 
         try:
             response = self.session.post(
-                f"{self.base_url}/v2/auth/tokens",
+                f"{self.base_url}{API_ENDPOINTS['auth']['tokens']}",
                 json=params,
                 headers=headers,
-                timeout=30
+                timeout=TIME_CONSTANTS["DEFAULT_TIMEOUT"]
             ).json()
 
             if not response.get("success", False):
                 error_msg = response.get('errorMessage', 'Neznámá chyba')
-                logger.error(f"Chyba obnovení tokenu: {error_msg}")
+                self.logger.error(f"Chyba obnovení tokenu: {error_msg}")
                 return self.login()
 
             self.access_token = response["token"]["accessToken"]
@@ -231,11 +236,11 @@ class AuthService(ServiceBase):
             # Uložení tokenů do souboru
             self._save_tokens()
 
-            logger.info("Token úspěšně obnoven")
+            self.logger.info("Token úspěšně obnoven")
             return True
 
         except Exception as e:
-            logger.error(f"Chyba při obnovení tokenu: {e}")
+            self.logger.error(f"Chyba při obnovení tokenu: {e}")
             return self.login()
 
     def get_auth_headers(self):
@@ -280,7 +285,7 @@ class AuthService(ServiceBase):
                 os.remove(self.token_file)
                 return True
             except Exception as e:
-                logger.error(f"Chyba při mazání souboru s tokeny: {e}")
+                self.logger.error(f"Chyba při mazání souboru s tokeny: {e}")
                 return False
 
         return True

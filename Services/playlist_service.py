@@ -5,12 +5,13 @@ PlaylistService - Služba pro generování M3U playlistů z MagentaTV/MagioTV
 """
 import logging
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime
+from Services.base.service_base import ServiceBase
 
 logger = logging.getLogger(__name__)
 
 
-class PlaylistService:
+class PlaylistService(ServiceBase):
     """
     Služba pro generování M3U playlistů
     """
@@ -23,9 +24,9 @@ class PlaylistService:
             channel_service (ChannelService): Instance služby pro správu kanálů
             stream_service (StreamService): Instance služby pro streamy
         """
+        super().__init__("playlist")
         self.channel_service = channel_service
         self.stream_service = stream_service
-        self.logger = logging.getLogger(f"{__name__}.playlist")
 
     def generate_m3u_playlist(self, server_url=""):
         """

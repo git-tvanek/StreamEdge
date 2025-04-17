@@ -1,4 +1,12 @@
-from Services.service_base import ServiceBase
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+AuthenticatedServiceBase - Základní třída pro služby vyžadující autentizaci
+"""
+import logging
+from Services.base.service_base import ServiceBase
+
+logger = logging.getLogger(__name__)
 
 
 class AuthenticatedServiceBase(ServiceBase):

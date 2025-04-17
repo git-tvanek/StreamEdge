@@ -5,12 +5,13 @@ ChannelService - Služba pro správu kanálů MagentaTV/MagioTV
 """
 import logging
 from Models.channel import Channel
+from Services.base.authenticated_service_base import AuthenticatedServiceBase
 from Services.utils.constants import API_ENDPOINTS, TIME_CONSTANTS
 
 logger = logging.getLogger(__name__)
 
 
-class ChannelService:
+class ChannelService(AuthenticatedServiceBase):
     """
     Služba pro získávání a správu kanálů
     """
@@ -22,20 +23,10 @@ class ChannelService:
         Args:
             auth_service (AuthService): Instance služby pro autentizaci
         """
-        self.auth_service = auth_service
+        super().__init__("channel", auth_service)
         self.session = auth_service.session
         self.base_url = auth_service.get_base_url()
         self.language = auth_service.language
-        self.logger = logging.getLogger(f"{__name__}.channel")
-
-    def _get_auth_headers(self):
-        """
-        Získání autorizačních hlaviček
-
-        Returns:
-            dict: Hlavičky s autorizačním tokenem nebo None při chybě
-        """
-        return self.auth_service.get_auth_headers()
 
     def get_channels(self):
         """
@@ -121,7 +112,7 @@ class ChannelService:
             if str(channel["id"]) == str(channel_id):
                 return channel
 
-        logger.warning(f"Kanál s ID {channel_id} nebyl nalezen")
+        self.logger.warning(f"Kanál s ID {channel_id} nebyl nalezen")
         return None
 
     def get_channels_by_group(self, group_name):

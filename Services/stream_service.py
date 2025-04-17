@@ -6,11 +6,13 @@ StreamService - Služba pro získávání streamů z MagentaTV/MagioTV
 import logging
 from urllib.parse import urlparse
 from Models.stream import Stream
+from Services.base.authenticated_service_base import AuthenticatedServiceBase
+from Services.utils.constants import TIME_CONSTANTS
 
 logger = logging.getLogger(__name__)
 
 
-class StreamService:
+class StreamService(AuthenticatedServiceBase):
     """
     Služba pro získávání streamů živého vysílání
     """
@@ -23,7 +25,7 @@ class StreamService:
             auth_service (AuthService): Instance služby pro autentizaci
             quality (str): Kvalita streamu (p1-p5, kde p5 je nejvyšší)
         """
-        self.auth_service = auth_service
+        super().__init__("stream", auth_service)
         self.session = auth_service.session
         self.base_url = auth_service.get_base_url()
         self.language = auth_service.language
@@ -42,7 +44,7 @@ class StreamService:
             dict: Informace o streamu včetně URL nebo None v případě chyby
         """
         # Získání autorizačních hlaviček
-        headers = self.auth_service.get_auth_headers()
+        headers = self._get_auth_headers()
         if not headers:
             return None
 
@@ -70,12 +72,12 @@ class StreamService:
                 f"{self.base_url}/v2/television/stream-url",
                 params=params,
                 headers=stream_headers,
-                timeout=10
+                timeout=TIME_CONSTANTS["STREAM_TIMEOUT"]
             ).json()
 
             if not response.get("success", False):
                 error_msg = response.get('errorMessage', 'Neznámá chyba')
-                logger.error(f"Chyba při získání stream URL: {error_msg}")
+                self.logger.error(f"Chyba při získání stream URL: {error_msg}")
                 return None
 
             url = response["url"]
@@ -93,7 +95,7 @@ class StreamService:
                 url,
                 headers=headers_redirect,
                 allow_redirects=False,
-                timeout=10
+                timeout=TIME_CONSTANTS["STREAM_TIMEOUT"]
             )
 
             final_url = redirect_response.headers.get("location", url)
@@ -109,5 +111,5 @@ class StreamService:
             return stream.to_dict()
 
         except Exception as e:
-            logger.error(f"Chyba při získání stream URL: {e}")
+            self.logger.error(f"Chyba při získání stream URL: {e}")
             return None

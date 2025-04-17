@@ -5,8 +5,8 @@ ClientService - Hlavní klientská služba pro MagentaTV/MagioTV API
 """
 import logging
 import time
-from flask import current_app
 
+from Services.base.service_base import ServiceBase
 from Services.auth_service import AuthService
 from Services.channel_service import ChannelService
 from Services.stream_service import StreamService
@@ -18,7 +18,7 @@ from Services.catchup_service import CatchupService
 logger = logging.getLogger(__name__)
 
 
-class ClientService:
+class ClientService(ServiceBase):
     """
     Hlavní klientská služba pro MagentaTV/MagioTV API
 
@@ -36,6 +36,8 @@ class ClientService:
             language (str, optional): Kód jazyka (cz, sk) nebo None pro načtení z konfigurace
             quality (str, optional): Kvalita streamu (p1-p5) nebo None pro načtení z konfigurace
         """
+        super().__init__("client")
+
         # Načtení konfigurace, pokud nejsou parametry zadány
         if username is None:
             username = self._get_config("USERNAME", "")
@@ -58,26 +60,6 @@ class ClientService:
         # Základní údaje
         self.language = language
         self.quality = quality
-
-        self.logger = logging.getLogger(f"{__name__}.client")
-
-    def _get_config(self, key, default=None):
-        """
-        Získání hodnoty z konfigurace aplikace
-
-        Args:
-            key (str): Klíč konfigurace
-            default: Výchozí hodnota, pokud klíč neexistuje
-
-        Returns:
-            any: Hodnota konfigurace nebo výchozí hodnota
-        """
-        try:
-            return current_app.config.get(key.upper(), default)
-        except RuntimeError:
-            # Fallback pokud není aktivní aplikační kontext
-            logger.warning(f"Nelze získat konfiguraci pro {key}, použije se výchozí hodnota")
-            return default
 
     def login(self):
         """

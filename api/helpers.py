@@ -26,7 +26,7 @@ def get_api():
 
     if _api_instance is None:
         # Import here to avoid circular import
-        from Services.service_factory import get_magenta_tv_service
+        from Services.factory.service_factory import get_magenta_tv_service
 
         # Check credentials
         if not current_app.config.get("USERNAME") or not current_app.config.get("PASSWORD"):
