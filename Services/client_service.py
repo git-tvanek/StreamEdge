@@ -312,7 +312,7 @@ class ClientService(ServiceBase):
         Returns:
             str: XML data pro EPG
         """
-        return self.playlist_service.generate_epg_xml(server_url, days, self.epg_service)
+        return self.epg_service.export_epg_to_xml(server_url, days, self.channel_service)
 
     def generate_simple_m3u(self, server_url=""):
         """

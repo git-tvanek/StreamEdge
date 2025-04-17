@@ -4,8 +4,6 @@
 PlaylistService - Služba pro generování M3U playlistů z MagentaTV/MagioTV
 """
 import logging
-import xml.etree.ElementTree as ET
-from datetime import datetime
 from Services.base.service_base import ServiceBase
 
 logger = logging.getLogger(__name__)
@@ -76,9 +74,12 @@ class PlaylistService(ServiceBase):
 
         return playlist
 
-    def generate_epg_xml(self, server_url="", days=3, epg_service=None):
+    def get_epg_xml(self, server_url="", days=3, epg_service=None):
         """
-        Vygenerování XML pro EPG (Electronic Program Guide)
+        Získání XML dat pro EPG (Electronic Program Guide) s využitím EPGService
+
+        Tato metoda je wrapper kolem EPGService.export_epg_to_xml pro zachování
+        zpětné kompatibility a jednodušší přístup k EPG datům.
 
         Args:
             server_url (str): URL serveru
@@ -92,89 +93,7 @@ class PlaylistService(ServiceBase):
             self.logger.error("EPG služba není k dispozici")
             return ""
 
-        try:
-            # Získání seznamu kanálů
-            channels = self.channel_service.get_channels()
-            if not channels:
-                return ""
-
-            # Získání EPG dat
-            all_epg = epg_service.get_epg(days_back=0, days_forward=days)
-            if not all_epg:
-                return ""
-
-            # Vytvoření kořenového elementu XML
-            root = ET.Element("tv")
-            root.set("generator-info-name", "StreamEdge")
-            root.set("generator-info-url", server_url)
-
-            # Přidání informací o kanálech
-            for channel in channels:
-                channel_id = str(channel["id"])
-                channel_element = ET.SubElement(root, "channel")
-                channel_element.set("id", channel_id)
-
-                # Přidání jména kanálu
-                display_name = ET.SubElement(channel_element, "display-name")
-                display_name.text = channel["name"]
-
-                # Přidání ikony kanálu
-                if channel.get("logo"):
-                    icon = ET.SubElement(channel_element, "icon")
-                    icon.set("src", channel["logo"])
-
-            # Přidání programů pro každý kanál
-            for channel_id, programs in all_epg.items():
-                for program in programs:
-                    # Vytvoření elementu programu
-                    prog_element = ET.SubElement(root, "programme")
-                    prog_element.set("channel", str(channel_id))
-
-                    # Formátování začátku a konce
-                    start = datetime.strptime(program["start_time"], "%Y-%m-%d %H:%M:%S")
-                    end = datetime.strptime(program["end_time"], "%Y-%m-%d %H:%M:%S")
-
-                    prog_element.set("start", start.strftime("%Y%m%d%H%M%S %z"))
-                    prog_element.set("stop", end.strftime("%Y%m%d%H%M%S %z"))
-
-                    # Přidání názvu
-                    title = ET.SubElement(prog_element, "title")
-                    title.text = program["title"]
-
-                    # Přidání popisu
-                    if program.get("description"):
-                        desc = ET.SubElement(prog_element, "desc")
-                        desc.text = program["description"]
-
-                    # Přidání kategorie
-                    if program.get("category"):
-                        category = ET.SubElement(prog_element, "category")
-                        category.text = program["category"]
-
-                    # Přidání roku
-                    if program.get("year"):
-                        date = ET.SubElement(prog_element, "date")
-                        date.text = str(program["year"])
-
-                    # Přidání délky trvání
-                    if program.get("duration"):
-                        length = ET.SubElement(prog_element, "length")
-                        length.set("units", "seconds")
-                        length.text = str(program["duration"])
-
-                    # Přidání obrázků
-                    for image_url in program.get("images", []):
-                        icon = ET.SubElement(prog_element, "icon")
-                        icon.set("src", image_url)
-
-            # Konverze XML na řetězec
-            from xml.dom import minidom
-            xml_str = minidom.parseString(ET.tostring(root, 'utf-8')).toprettyxml(indent="  ")
-            return xml_str
-
-        except Exception as e:
-            self.logger.error(f"Chyba při generování EPG XML: {e}")
-            return ""
+        return epg_service.export_epg_to_xml(server_url, days, self.channel_service)
 
     def generate_simple_m3u(self, server_url=""):
         """
