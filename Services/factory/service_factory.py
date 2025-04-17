@@ -250,7 +250,8 @@ class ServiceFactory:
         return auth_service
 
     @classmethod
-    def create_channel_service(cls, auth_service=None, cache_service=None, session_service=None, system_service=None):
+    def create_channel_service(cls, auth_service=None, cache_service=None, session_service=None,
+                               system_service=None, config_service=None):
         """
         Vytvoření instance ChannelService
 
@@ -259,12 +260,14 @@ class ServiceFactory:
             cache_service (CacheService, optional): Instance služby pro cache
             session_service (SessionService, optional): Instance služby pro HTTP komunikaci
             system_service (SystemService, optional): Instance služby pro monitoring
+            config_service (ConfigService, optional): Instance služby pro konfiguraci
 
         Returns:
             ChannelService: Instance služby pro kanály
         """
         # Získání nebo vytvoření závislostí
-        config_service = cls.create_config_service()
+        if config_service is None:
+            config_service = cls.create_config_service()
 
         if cache_service is None:
             cache_service = cls.create_cache_service()
@@ -290,9 +293,14 @@ class ServiceFactory:
         if instance_key in cls._instances:
             return cls._instances[instance_key]
 
-        # Vytvoření nové instance - přizpůsobte podle konstruktoru ChannelService
-        # Pokud ChannelService již podporuje cache_service a session_service, předejte je
-        channel_service = ChannelService(auth_service)
+        # Vytvoření nové instance s pomocnými službami
+        channel_service = ChannelService(
+            auth_service,
+            cache_service=cache_service,
+            system_service=system_service,
+            config_service=config_service,
+            session_service=session_service
+        )
 
         # Registrace služby v SystemService
         if system_service:
